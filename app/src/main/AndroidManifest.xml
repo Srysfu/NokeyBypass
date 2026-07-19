@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.nokeybypass">
+
+    <application
+        android:label="NokeyBypass"
+        android:icon="@mipmap/ic_launcher">
+
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+
+        <meta-data
+            android:name="xposeddescription"
+            android:value="Nokey（乘趣）破解模块 - 绕过签名校验/安全检测/解锁所有皮肤" />
+
+        <meta-data
+            android:name="xposedminversion"
+            android:value="53" />
+    </application>
+</manifest>
