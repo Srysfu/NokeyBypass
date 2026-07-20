@@ -1,0 +1,3 @@
+*.sh linguist-vendored
+*.gradle.kts linguist-language=Kotlin
+*.java linguist-language=Java
