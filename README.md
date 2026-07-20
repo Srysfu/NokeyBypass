@@ -13,6 +13,13 @@
   <img src="https://img.shields.io/badge/License-MIT-blue" />
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/github/stars/Srysfu/NokeyBypass?style=flat&logo=github" />
+  <img src="https://img.shields.io/github/last-commit/Srysfu/NokeyBypass?style=flat" />
+  <img src="https://img.shields.io/github/repo-size/Srysfu/NokeyBypass?style=flat" />
+  <img src="https://img.shields.io/github/actions/workflow/status/Srysfu/NokeyBypass/build.yml?style=flat&logo=githubactions" />
+</p>
+
 </div>
 
 ---
