@@ -1,34 +1,98 @@
+<div align="center">
+
 # NokeyBypass
 
-绕过某数字钥匙签名校验、安全检测和皮肤锁的 Xposed 模块。
+**NokeyBypass** 是一个基于 Xposed Framework 的 Android Hook 模块，  
+针对某数字钥匙应用进行签名校验绕过、运行环境检测绕过以及皮肤付费限制解除。
 
-## Hook 工作原理
+<p align="center">
+  <img src="https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white" />
+  <img src="https://img.shields.io/badge/Xposed-API%2082-FF6600" />
+  <img src="https://img.shields.io/badge/Language-Java%208-ED8B00?logo=java&logoColor=white" />
+  <img src="https://img.shields.io/badge/Gradle-8.x-02303A?logo=gradle&logoColor=white" />
+  <img src="https://img.shields.io/badge/License-MIT-blue" />
+</p>
 
-模块入口在 `com.example.nokeybypass.MainHook`，使用 Xposed 的 `handleLoadPackage` 拦截目标应用进程，根据包名命中后注册三个独立的 Hook 回调：
+</div>
+
+---
+
+## 功能概览
+
+| 功能模块 | 作用目标 | 方案 |
+|----------|---------|------|
+| 签名校验绕过 | AppConstants.compareNokeySignaturesSHA1 | Hook 返回 true，跳过完整性验证 |
+| 安全检测绕过 | O00000Oo.O00000o0(int) | 截获检测参数，强制置为通过状态 |
+| 皮肤解锁 | SkinItem 类（6 个方法） | 全面接管解锁、试用、过期、价格展示等状态 |
+
+---
+
+## Hook 原理详解
 
 ### 1. 签名校验绕过
 
-目标应用的签名校验通常在 Application 或 Activity 的 onCreate 阶段检查自身签名，如果发现签名与官方不一致就闪退。
+目标应用的签名校验通常在 Application 或 Activity.onCreate 阶段执行。  
+采用 Xposed 方法级 Hook 直接于 Java 层篡改校验结果：
 
-Hook 思路：找到校验方法，直接让它返回「通过」的结果。
-- 如果校验方法返回 `boolean`（如 `checkSignature()`），Hook 后固定 `return true`
-- 如果校验方法抛出异常才算失败，Hook 后 `return` 空值或伪造一个合法的 Signature 对象
-- 如果签名校验写在 native 层，Hook `PackageManager.getPackageInfo` 或 `PackageInfo.signatures`，在 Java 层把返回值换成官方签名
+- boolean 返回值类型：afterHookedMethod 中 param.setResult(true)
+- 异常捕获类型：拦截校验方法，跳过异常抛出逻辑
+- native / PackageManager 方案（备选）：Hook PackageManager.getPackageInfo 返回伪造签名
 
 ### 2. 安全检测绕过
 
-目标应用会检测 Root 权限、Xposed 框架、调试模式等环境特征，检测到后阻止运行。
+目标会检测 Root / Xposed / 调试模式等运行环境。根据检测手段分类处理：
 
-Hook 策略按检测方式分三类：
-
-- **文件/进程检测**：检测 `/sbin/su`、`/system/app/Superuser.apk` 是否存在，或检查 `com.topjohnwu.magisk` 等进程。Hook `File.exists()`、`File.length()`、`Runtime.exec()`，对敏感路径返回「文件不存在」或过滤掉相关进程名。
-- **Java 反射检测**：调用 `Class.forName("de.robv.android.xposed.XposedBridge")` 来确认 Xposed 是否存在。Hook `Class.forName` 和 `ClassLoader.loadClass`，对 Xposed 相关类名抛出 `ClassNotFoundException`。
-- **build 标签检测**：检查 `Build.TAGS.contains("test-keys")` 来判断是否刷过第三方 ROM。直接 Hook `Build.TAGS` 的 get 方法，返回 `release-keys`。
+| 检测类型 | 检测方式 | 绕过策略 |
+|----------|----------|----------|
+| 文件检测 | File.exists，File.length | Hook 后对敏感路径返回不存在 |
+| 进程检测 | Runtime.exec 读取 /proc | 过滤 magisk、su 等进程名 |
+| 反射检测 | Class.forName 探测 XposedBridge | 抛出 ClassNotFoundException |
+| Build 标签 | Build.TAGS.contains(test-keys) | Hook Build.TAGS getter 返回 release-keys |
 
 ### 3. 皮肤解锁
 
-数字钥匙的付费皮肤通常通过在线验证或本地校验来控制解锁。Hook 所有与皮肤相关的接口调用，直接赋予解锁状态。
+付费皮肤限制通过在线状态验证 + 本地状态缓存实现。  
+全量 Hook SkinItem 的以下方法达成完全解锁：
 
-- **皮肤数据接口**：Hook 皮肤列表的获取方法，在返回数据里把所有皮肤的 `isLocked`、`isTrial`、`isExpired` 等字段全部设为 `false`。
-- **本地校验绕过**：如果皮肤验证依赖本地签名或 hash 校验，用方法 1 的方式绕过
-- **付费状态接管**：找到皮肤管理类的 `isPurchased()` 或类似方法，直接 Hook 返回 `true`
+```
+canUse           -> true          # 可直接使用
+isSupportTry     -> true          # 支持试用
+isTrialExpired   -> false         # 试用未过期
+isNeedShowPrice  -> false         # 不显示价格
+getKeepStatus    -> 3             # 永久保留状态
+getUsingFlag     -> 1             # 正在使用标记
+```
+
+---
+
+## 编译
+
+```bash
+git clone https://github.com/Srysfu/NokeyBypass.git
+cd NokeyBypass
+./gradlew assembleRelease
+```
+
+编译产物路径：app/build/outputs/apk/release/
+
+---
+
+## 安装
+
+1. 确保设备已安装 Xposed / LSPosed 框架
+2. 在模块管理中找到 NokeyBypass 并勾选启用
+3. 重启 SystemUI 或重启设备
+4. 打开目标应用即可生效
+
+---
+
+## 技术栈
+
+- 语言：Java 8
+- 框架：Xposed Framework (API 82)
+- 构建工具：Gradle 8.x + Kotlin DSL
+- 最低支持：Android 7.0 (API 24)
+
+---
+
+> 免责声明：本项目仅供学习研究使用，请勿用于商业或非法用途。
